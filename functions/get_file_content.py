@@ -1,6 +1,7 @@
 import os
 from config import max_chars
 from path_validation import validate_path
+from google.genai import types
 
 def get_file_content(working_directory, file_path):
     validationMessage = validate_path(working_directory, file_path)
@@ -23,6 +24,16 @@ def get_file_content(working_directory, file_path):
     except Exception as error:
         return f"Error: {error}"
     
-    
-        
-    
+schema_get_file_content = types.FunctionDeclaration(
+    name = "get_file_content",
+    description="Read the content of a specific file",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The path to the file to list the contents of. If not provided, there will be no content listed since the file does not exist."
+            )
+        }
+    )
+)
