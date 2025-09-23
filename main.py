@@ -3,10 +3,10 @@ import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from functions.get_files_info import schema_get_files_info
-from functions.get_file_content import schema_get_file_content
-from functions.write_file import schema_write_file
-from functions.run_python_file import schema_run_python_file
+from functions.get_files_info import schema_get_files_info, get_files_info
+from functions.get_file_content import schema_get_file_content, get_file_content
+from functions.write_file import schema_write_file, write_file
+from functions.run_python_file import schema_run_python_file, run_python_file
 
 def main():
     print("Hello from agent-41!")
@@ -77,11 +77,58 @@ def generate_content(client, messages, system_prompt, containsVerbose, available
     if function_call_part:
         for function_call in function_call_part:
             # print(function_call_part)
-            print(f"Calling function: {function_call.name}({function_call.args})")
+            res = call_function(function_call, containsVerbose)
+            
+            if not res.parts[0].function_response.response:
+                Exception("No Response from Agent found.")
+            else:
+                if containsVerbose:
+                    print(f"-> {res.parts[0].function_response.response}")
     else:
         print("Response: ")
         print(prompt_answer.text)
 
+def call_function(function_call_part, verbose=False):
+    if verbose:
+        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+    else:
+        print(f" - Calling function: {function_call_part.name}")
+    
+    # determine the correct function to use
+    functionDict = {
+        "get_file_content" : get_file_content,
+        "get_files_info" : get_files_info,
+        "run_python_file" : run_python_file,
+        "write_file" : write_file
+    }
+    
+    if function_call_part.name in functionDict:
+        function_to_use = functionDict[function_call_part.name]
+        
+        # add default working directory of ./calculator to args (which is a dict)
+        function_call_part.args["working_directory"] = "./calculator"
+        
+        res = function_to_use(**function_call_part.args)
+        
+        return types.Content(
+            role="tool",
+            parts=[
+                types.Part.from_function_response(
+                    name=function_call_part.name,
+                    response={"result": res},
+                )
+            ],
+        )
+    else:
+        return types.Content(
+            role="tool",
+            parts=[
+                types.Part.from_function_response(
+                    name=function_call_part.name,
+                    response={"error": f"Unknown function: {function_call_part.name}"},
+                )
+            ],
+        )
 
 if __name__ == "__main__":
     main()
