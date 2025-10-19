@@ -2,6 +2,9 @@ import os
 from google.genai import types
 
 def get_files_info(working_directory, directory=None): 
+    if not directory:
+        directory = "."
+    
     full_path = os.path.join(working_directory, directory)
     working_directory_abs = os.path.abspath(working_directory)
     full_path_abs = os.path.abspath(full_path)
@@ -20,12 +23,15 @@ def get_files_info(working_directory, directory=None):
         return contents
     
     # generate the contents for the directory if conditonals satisfied
-    directory_content_names = os.listdir(full_path)
+    try:
+        directory_content_names = os.listdir(full_path_abs)
+    except Exception as error:
+        return f"Error: {error}"
     
     for name in directory_content_names:
         # get current file path and information
         try: 
-            file_path = os.path.join(os.path.join(full_path, name))
+            file_path = os.path.join(full_path_abs, name)
             
             file_size = os.path.getsize(file_path)
             is_dir = os.path.isdir(file_path)

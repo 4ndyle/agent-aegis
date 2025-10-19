@@ -9,7 +9,7 @@ from functions.write_file import schema_write_file, write_file
 from functions.run_python_file import schema_run_python_file, run_python_file
 
 def main():
-    print("Hello from agent-41!")
+    print("Hello from agent-aegis!")
     
     # check if prompt is provided 
     user_prompt = ""
@@ -56,7 +56,21 @@ def main():
     )
 
     client = genai.Client(api_key=api_key)
-    generate_content(client, messages, system_prompt, containsVerbose, available_functions)
+    
+    for i in range(20):
+        try:
+            content = generate_content(client, messages, system_prompt, containsVerbose, available_functions)
+            
+            if content.function_calls:
+                continue
+            else:
+                print("Response:")
+                print(content.text)
+                break
+        except Exception as error:
+            print(error)
+
+
 
 def generate_content(client, messages, system_prompt, containsVerbose, available_functions):
     prompt_answer = client.models.generate_content(
@@ -67,6 +81,9 @@ def generate_content(client, messages, system_prompt, containsVerbose, available
             tools=[available_functions]
         )
     )
+        
+    for contentMessage in prompt_answer.candidates:
+        messages.append(contentMessage.content)
     
     if containsVerbose:
         print(f"Prompt tokens: {prompt_answer.usage_metadata.prompt_token_count}")
@@ -81,12 +98,15 @@ def generate_content(client, messages, system_prompt, containsVerbose, available
             
             if not res.parts[0].function_response.response:
                 Exception("No Response from Agent found.")
+            
             else:
                 if containsVerbose:
                     print(f"-> {res.parts[0].function_response.response}")
-    else:
-        print("Response: ")
-        print(prompt_answer.text)
+                    
+                messages.append(res)
+                
+
+    return prompt_answer
 
 def call_function(function_call_part, verbose=False):
     if verbose:
@@ -111,7 +131,7 @@ def call_function(function_call_part, verbose=False):
         res = function_to_use(**function_call_part.args)
         
         return types.Content(
-            role="tool",
+            role="user",
             parts=[
                 types.Part.from_function_response(
                     name=function_call_part.name,
