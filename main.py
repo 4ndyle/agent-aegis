@@ -69,6 +69,9 @@ def main():
                 break
         except Exception as error:
             print(error)
+    else:
+        print("Max number of iterations reached. Model cannot produce a final response.")
+        exit(1)
 
 
 
