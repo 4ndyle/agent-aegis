@@ -1,35 +1,57 @@
 # agent-aegis
 
-Lightweight Python toolkit with:
+An AI-powered coding agent that uses Google's Gemini 2.0 Flash with function calling capabilities to interact with your codebase. This agent can autonomously read files, list directories, write code, and execute Python scripts through a conversational interface.
 
-- A simple CLI to send prompts to Google AI (Gemini) and print responses
-- Safe file utilities (read/list/write) that prevent escaping a working directory
+**Key Features:**
 
-Note: The `calculator/` folder is only for local testing and is not part of the project’s core scope.
+- Autonomous function calling with feedback loop (iterates until task completion)
+- Safe file operations (read/list/write) with working directory constraints
+- Python script execution with argument support
+- Path validation to prevent directory traversal attacks
+- Natural language interaction with your codebase
 
----
-
-## Features
-
-- Gemini prompt runner using `google-genai` (model: `gemini-2.0-flash-001`)
-- `.env`-based API key loading via `python-dotenv`
-- Path-safe filesystem helpers:
-  - `get_file_content(working_directory, file_path)`
-  - `get_files_info(working_directory, directory)`
-  - `write_file(working_directory, file_path, content)`
+Note: The `calculator/` folder is for testing the agent's capabilities.
 
 ---
 
-## Project layout
+## How It Works
 
-- `main.py` — Gemini prompt runner CLI
-- `config.py` — basic configuration (e.g., character read cap)
-- `path_validation.py` — single entry point for safe path checks
-- `functions/`
-  - `get_file_content.py`
-  - `get_files_info.py`
-  - `write_file.py`
-- `pyproject.toml` — metadata and dependencies
+The agent uses a **feedback loop** to accomplish tasks:
+
+1. You provide a natural language prompt
+2. The LLM analyzes the task and calls appropriate functions
+3. Function results are fed back to the LLM
+4. Process repeats until the LLM has enough information to answer
+5. Final response is displayed (up to 20 iterations)
+
+### Available Functions
+
+The agent can autonomously call these functions:
+
+- **`get_files_info`** — List files and directories with metadata
+- **`get_file_content`** — Read file contents safely
+- **`write_file`** — Create or overwrite files
+- **`run_python_file`** — Execute Python scripts with arguments
+
+All operations are scoped to `./calculator` directory for security.
+
+---
+
+## Project Layout
+
+```
+agent-aegis/
+├── main.py                    # Main agent with feedback loop
+├── config.py                  # Configuration (e.g., max_chars)
+├── path_validation.py         # Security: path validation utilities
+├── functions/
+│   ├── get_files_info.py      # List directory contents
+│   ├── get_file_content.py    # Read files safely
+│   ├── write_file.py          # Write/create files
+│   └── run_python_file.py     # Execute Python scripts
+├── calculator/                # Test workspace
+└── pyproject.toml             # Dependencies & metadata
+```
 
 ---
 
@@ -54,7 +76,7 @@ Use either uv (recommended) or pip.
 
 ```bash
 # Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install uv
 
 # From repository root
 uv sync
@@ -79,72 +101,130 @@ pip install google-genai==1.12.1 python-dotenv==1.1.0
 
 ## Usage
 
-### Gemini prompt runner (`main.py`)
+### Basic Examples
 
-Sends your prompt to Gemini 2.0 Flash and prints the response. Requires `GEMINI_API_KEY` in `.env`.
+Ask the agent to interact with your code using natural language:
 
 ```bash
-# Basic
-python main.py "How can I improve my Python skills?"
+# Analyze code structure
+uv run main.py "how does the calculator render results to the console?"
 
-# Verbose token usage output
-python main.py "Explain decorators with examples" --verbose
+# Investigate functionality
+uv run main.py "what functions are available in the pkg module?"
+
+# Write or modify files
+uv run main.py "create a new function that adds two numbers"
+
+# Execute code
+uv run main.py "run the tests and show me the results"
 ```
 
-Notes:
+### Verbose Mode
 
-- Uses model `gemini-2.0-flash-001`.
-- If the prompt is missing, the script exits with guidance.
+See detailed function calls, arguments, and token usage:
 
----
-
-## File utilities (in `functions/`)
-
-All helpers enforce that operations stay within a provided `working_directory`.
-
-- `get_file_content(working_directory: str, file_path: str) -> str`
-
-  - Returns file contents (up to a configured limit in `config.max_chars`) or an error message.
-
-- `get_files_info(working_directory: str, directory: str) -> str`
-
-  - Lists entries in a directory with size and directory flag, or returns an error message. Output starts with `"Results for current directory:"`.
-
-- `write_file(working_directory: str, file_path: str, content: str) -> str`
-  - Creates parent folders as needed, writes the file, and returns a status message. Blocks writes outside the working directory.
-
-Example snippet:
-
-```python
-from functions.get_files_info import get_files_info
-from functions.get_file_content import get_file_content
-from functions.write_file import write_file
-
-print(get_files_info(".", "."))
-print(write_file(".", "docs/example.txt", "hello"))
-print(get_file_content(".", "docs/example.txt"))
+```bash
+uv run main.py "analyze the main.py structure" --verbose
 ```
 
+**Verbose output includes:**
+
+- Iteration count
+- Function names and arguments
+- Function responses
+- Token usage (prompt + completion)
+
+### How the Agent Works
+
+The agent iteratively calls functions until it has enough context to answer:
+
+```
+User: "how does the calculator work?"
+  → Agent calls: get_files_info()
+  → Agent calls: get_file_content("main.py")
+  → Agent calls: get_file_content("pkg/calculator.py")
+  → Agent responds with analysis
+```
+
+The agent stops when no more function calls are needed (or after 20 iterations).
+
 ---
 
-## Troubleshooting
+## Function Schemas
 
-- Missing API key / auth errors
-  - Ensure `.env` exists with `GEMINI_API_KEY=...`
-- `ModuleNotFoundError: google.genai` or `google-genai`
-  - Re-install dependencies (`uv sync` or reinstall via pip) and confirm Python 3.10+ is active.
-- Filesystem errors
-  - Paths must be under your chosen `working_directory`. Access outside is intentionally blocked.
+Each function is exposed to the LLM through a schema definition. The agent autonomously decides when to call these functions.
+
+### `get_files_info`
+
+Lists files and directories with metadata (size, type).
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `directory`: Relative path to list
+
+**Returns:** Formatted string with file names, sizes, and directory flags
+
+### `get_file_content`
+
+Reads file contents safely (up to `config.max_chars`).
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to read
+
+**Returns:** File contents or error message
+
+### `write_file`
+
+Creates or overwrites files with validation.
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to write
+- `content`: String content to write
+
+**Returns:** Success or error message
+
+### `run_python_file`
+
+Executes Python scripts with optional arguments.
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to Python file
+- `args` (optional): List of command-line arguments
+
+**Returns:** Script output or error message
+
+### Security Note
+
+All functions receive `working_directory="./calculator"` automatically via injection in [main.py](main.py#L137). The agent cannot escape this directory.
 
 ---
 
-## Roadmap / Notes
+## Architecture
 
-- The file read helper currently reads up to `max_chars`. Consider improving truncation messaging and byte/encoding handling if you plan to read large files.
-- Add unit tests for the filesystem helpers and CLI.
+### Feedback Loop Implementation
 
----
+The agent runs a loop (max 20 iterations) in [main.py](main.py#L59-L73):
 
-## License
+1. **Generate content** with available function schemas
+2. **Check for function calls** in response
+3. **Execute functions** and append results to message history
+4. **Continue loop** until LLM returns text-only response
+5. **Display final answer** and exit
 
-Add a license if you plan to share or distribute this project.
+### Message History
+
+The `messages` list maintains conversation context:
+
+- User prompt
+- LLM responses (with function calls)
+- Function execution results
+
+Each iteration, the LLM sees all previous context, enabling multi-step reasoning.
+
