@@ -79,51 +79,108 @@ pip install google-genai==1.12.1 python-dotenv==1.1.0
 
 ## Usage
 
-### Gemini prompt runner (`main.py`)
+### Basic Examples
 
-Sends your prompt to Gemini 2.0 Flash and prints the response. Requires `GEMINI_API_KEY` in `.env`.
+Ask the agent to interact with your code using natural language:
 
 ```bash
-# Basic
-python main.py "How can I improve my Python skills?"
+# Analyze code structure
+uv run main.py "how does the calculator render results to the console?"
 
-# Verbose token usage output
-python main.py "Explain decorators with examples" --verbose
+# Investigate functionality
+uv run main.py "what functions are available in the pkg module?"
+
+# Write or modify files
+uv run main.py "create a new function that adds two numbers"
+
+# Execute code
+uv run main.py "run the tests and show me the results"
 ```
 
-Notes:
+### Verbose Mode
 
-- Uses model `gemini-2.0-flash-001`.
-- If the prompt is missing, the script exits with guidance.
+See detailed function calls, arguments, and token usage:
+
+```bash
+uv run main.py "analyze the main.py structure" --verbose
+```
+
+**Verbose output includes:**
+
+- Iteration count
+- Function names and arguments
+- Function responses
+- Token usage (prompt + completion)
+
+### How the Agent Works
+
+The agent iteratively calls functions until it has enough context to answer:
+
+```
+User: "how does the calculator work?"
+  → Agent calls: get_files_info()
+  → Agent calls: get_file_content("main.py")
+  → Agent calls: get_file_content("pkg/calculator.py")
+  → Agent responds with analysis
+```
+
+The agent stops when no more function calls are needed (or after 20 iterations).
 
 ---
 
-## File utilities (in `functions/`)
+## Function Schemas
 
-All helpers enforce that operations stay within a provided `working_directory`.
+Each function is exposed to the LLM through a schema definition. The agent autonomously decides when to call these functions.
 
-- `get_file_content(working_directory: str, file_path: str) -> str`
+### `get_files_info`
 
-  - Returns file contents (up to a configured limit in `config.max_chars`) or an error message.
+Lists files and directories with metadata (size, type).
 
-- `get_files_info(working_directory: str, directory: str) -> str`
+**Schema:**
 
-  - Lists entries in a directory with size and directory flag, or returns an error message. Output starts with `"Results for current directory:"`.
+- `working_directory` (auto-injected): Security-scoped directory
+- `directory`: Relative path to list
 
-- `write_file(working_directory: str, file_path: str, content: str) -> str`
-  - Creates parent folders as needed, writes the file, and returns a status message. Blocks writes outside the working directory.
+**Returns:** Formatted string with file names, sizes, and directory flags
 
-Example snippet:
+### `get_file_content`
 
-```python
-from functions.get_files_info import get_files_info
-from functions.get_file_content import get_file_content
-from functions.write_file import write_file
+Reads file contents safely (up to `config.max_chars`).
 
-print(get_files_info(".", "."))
-print(write_file(".", "docs/example.txt", "hello"))
-print(get_file_content(".", "docs/example.txt"))
-```
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to read
+
+**Returns:** File contents or error message
+
+### `write_file`
+
+Creates or overwrites files with validation.
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to write
+- `content`: String content to write
+
+**Returns:** Success or error message
+
+### `run_python_file`
+
+Executes Python scripts with optional arguments.
+
+**Schema:**
+
+- `working_directory` (auto-injected): Security-scoped directory
+- `file_path`: Relative path to Python file
+- `args` (optional): List of command-line arguments
+
+**Returns:** Script output or error message
+
+### Security Note
+
+All functions receive `working_directory="./calculator"` automatically via injection in [main.py](main.py#L137). The agent cannot escape this directory.
 
 ---
 
@@ -138,13 +195,42 @@ print(get_file_content(".", "docs/example.txt"))
 
 ---
 
-## Roadmap / Notes
+## Architecture
 
-- The file read helper currently reads up to `max_chars`. Consider improving truncation messaging and byte/encoding handling if you plan to read large files.
-- Add unit tests for the filesystem helpers and CLI.
+### Feedback Loop Implementation
+
+The agent runs a loop (max 20 iterations) in [main.py](main.py#L59-L73):
+
+1. **Generate content** with available function schemas
+2. **Check for function calls** in response
+3. **Execute functions** and append results to message history
+4. **Continue loop** until LLM returns text-only response
+5. **Display final answer** and exit
+
+### Message History
+
+The `messages` list maintains conversation context:
+
+- User prompt
+- LLM responses (with function calls)
+- Function execution results
+
+Each iteration, the LLM sees all previous context, enabling multi-step reasoning.
+
+---
+
+## Roadmap
+
+- [ ] Add support for more file operations (delete, move, rename)
+- [ ] Implement streaming responses for long tasks
+- [ ] Add multi-turn conversation support (continue from previous response)
+- [ ] Improve error recovery when functions fail
+- [ ] Unit tests for all function schemas
+- [ ] Support multiple working directories
+- [ ] Add file search/grep functionality
 
 ---
 
 ## License
 
-Add a license if you plan to share or distribute this project.
+MIT License - Feel free to use and modify.
