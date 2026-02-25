@@ -1,35 +1,57 @@
 # agent-aegis
 
-Lightweight Python toolkit with:
+An AI-powered coding agent that uses Google's Gemini 2.0 Flash with function calling capabilities to interact with your codebase. This agent can autonomously read files, list directories, write code, and execute Python scripts through a conversational interface.
 
-- A simple CLI to send prompts to Google AI (Gemini) and print responses
-- Safe file utilities (read/list/write) that prevent escaping a working directory
+**Key Features:**
 
-Note: The `calculator/` folder is only for local testing and is not part of the project’s core scope.
+- Autonomous function calling with feedback loop (iterates until task completion)
+- Safe file operations (read/list/write) with working directory constraints
+- Python script execution with argument support
+- Path validation to prevent directory traversal attacks
+- Natural language interaction with your codebase
 
----
-
-## Features
-
-- Gemini prompt runner using `google-genai` (model: `gemini-2.0-flash-001`)
-- `.env`-based API key loading via `python-dotenv`
-- Path-safe filesystem helpers:
-  - `get_file_content(working_directory, file_path)`
-  - `get_files_info(working_directory, directory)`
-  - `write_file(working_directory, file_path, content)`
+Note: The `calculator/` folder is for testing the agent's capabilities.
 
 ---
 
-## Project layout
+## How It Works
 
-- `main.py` — Gemini prompt runner CLI
-- `config.py` — basic configuration (e.g., character read cap)
-- `path_validation.py` — single entry point for safe path checks
-- `functions/`
-  - `get_file_content.py`
-  - `get_files_info.py`
-  - `write_file.py`
-- `pyproject.toml` — metadata and dependencies
+The agent uses a **feedback loop** to accomplish tasks:
+
+1. You provide a natural language prompt
+2. The LLM analyzes the task and calls appropriate functions
+3. Function results are fed back to the LLM
+4. Process repeats until the LLM has enough information to answer
+5. Final response is displayed (up to 20 iterations)
+
+### Available Functions
+
+The agent can autonomously call these functions:
+
+- **`get_files_info`** — List files and directories with metadata
+- **`get_file_content`** — Read file contents safely
+- **`write_file`** — Create or overwrite files
+- **`run_python_file`** — Execute Python scripts with arguments
+
+All operations are scoped to `./calculator` directory for security.
+
+---
+
+## Project Layout
+
+```
+agent-aegis/
+├── main.py                    # Main agent with feedback loop
+├── config.py                  # Configuration (e.g., max_chars)
+├── path_validation.py         # Security: path validation utilities
+├── functions/
+│   ├── get_files_info.py      # List directory contents
+│   ├── get_file_content.py    # Read files safely
+│   ├── write_file.py          # Write/create files
+│   └── run_python_file.py     # Execute Python scripts
+├── calculator/                # Test workspace
+└── pyproject.toml             # Dependencies & metadata
+```
 
 ---
 
@@ -54,7 +76,7 @@ Use either uv (recommended) or pip.
 
 ```bash
 # Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install uv
 
 # From repository root
 uv sync
@@ -81,9 +103,14 @@ pip install google-genai==1.12.1 python-dotenv==1.1.0
 
 ### Basic Examples
 
+### Basic Examples
+
+Ask the agent to interact with your code using natural language:
 Ask the agent to interact with your code using natural language:
 
 ```bash
+# Analyze code structure
+uv run main.py "how does the calculator render results to the console?"
 # Analyze code structure
 uv run main.py "how does the calculator render results to the console?"
 
