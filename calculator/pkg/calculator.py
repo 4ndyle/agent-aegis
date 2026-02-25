@@ -36,7 +36,7 @@ class Calculator:
                 try:
                     values.append(float(token))
                 except ValueError:
-                    raise ValueError(f"invalid token: {token}")
+                    raise ValueError(f"invalid token (make sure to seperate by spaces): {token}")
 
         while operators:
             self._apply_operator(operators, values)

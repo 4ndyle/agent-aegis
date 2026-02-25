@@ -25,13 +25,14 @@ def main():
 
     All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
     """
-    containsVerbose = "--verbose" in sys.argv
+    containsVerbose = "--verbose" in sys.argv # ['main.py', 'user prompt', '--verbose' (if used)]
     
+    # check if the user provided a prompt (which should be the first parameter)
     if len(sys.argv) > 1:
         user_prompt = sys.argv[1]
     else:
         print("Prompt cannot be empty. Please provide a prompt after the script")
-        print("Example: How can I improve my skills in python")
+        print("Example: How does the calculator work?")
         sys.exit(1)
     
     messages = [
